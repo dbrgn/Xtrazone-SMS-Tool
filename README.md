@@ -53,22 +53,14 @@ Der Sourcecode dieses Script steht unter der [CreativeCommons by-nc-sa 3.0 Lizen
 Hinweise
 --------
 
-* Ein Telefonbuch ist noch nicht implementiert, kommt wohl noch. Man kann jedoch in der .bashrc mit
-
-	export MAX=0791234567
-
-Telefonnummern als Variable exportieren, die dann mit
-
-	$ sms $MAX Hallo Max Muster!
-
-benutzt werden können.
+* Ein Telefonbuch ist noch nicht implementiert, kommt wohl noch. Man kann jedoch in der .bashrc mit `export MAX=0791234567` Telefonnummern als Variable exportieren, die dann mit `$ sms $MAX Hallo Max Muster!` benutzt werden können.
 
 * Dadurch dass das SMS mit nur einem Befehl abgeschickt werden kann, kann man sich z.B. Benachrichtigungs- oder Alarm-Cronjobs mit SMS-Benachrichtigung einrichten.
 
 * Mit zwei kleinen Anpassungen kann man das Ganze auch unter Windows laufen lassen:
 
-	Zeile  36: my $cookiefile = "xtrazone.cookie"; # Temporary cookie file
-	Zeile 150: if (system("del $cookiefile") != 0)
+		Zeile  36: my $cookiefile = "xtrazone.cookie"; # Temporary cookie file
+		Zeile 150: if (system("del $cookiefile") != 0)
 
 
 Known Issues
