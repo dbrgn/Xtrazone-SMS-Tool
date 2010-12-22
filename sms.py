@@ -5,10 +5,11 @@ import os, sys
 import json
 import pycurl
 import urllib
+import re
 
 imageviewer = 'eog'
-username = 'user'
-password = 'pass'
+username = ''
+password = ''
 
 class Curldata:
     def __init__(self):
@@ -23,15 +24,20 @@ class Curldata:
 def main():
     # Initialize pycurl and data class
     c = pycurl.Curl()
-    c.setopt(c.SSL_VERIFYPEER, 0) # Disable SSL cert verification (fix later)
     d = Curldata()
+
+    # Set some general curl options
+    c.setopt(c.SSL_VERIFYPEER, 0) # Disable SSL cert verification (fix later)
+    c.setopt(c.FOLLOWLOCATION, 1) # Follow redirects
+    c.setopt(c.USERAGENT, 'Mozilla/5.0 (X11; U; Linux i686; de; rv:1.9.2.13) Gecko/20101206 Ubuntu/10.10 (maverick) Firefox/3.6.13')
+    c.setopt(c.COOKIEJAR, '/tmp/xtrazone.cookie') # Place to store cookies
+    c.setopt(c.WRITEFUNCTION, d.add) # Define function to process data
 
     # Get CAPTCHA URL
     try:
         c.setopt(c.URL, 'https://xtrazone.sso.bluewin.ch/index.php/20,53,ajax,,,283/?route=%2Flogin%2Fgetcaptcha')
         c.setopt(c.POST, 1) # Enable POST data
         c.setopt(c.POSTFIELDS, 'action=getCaptcha') # POST data
-        c.setopt(c.WRITEFUNCTION, d.add) # Define function to process data
         c.perform() # Perform POST request
 
         resp = json.loads(d.data) # Convert response to dictionary
@@ -66,6 +72,18 @@ def main():
         print d.data
     except pycurl.error as e:
         print 'Error: Could not log in'
+        return 1
+
+    # Retrieve number of remaining SMS
+    try:
+        d.flush()
+        c.setopt(c.POST, 0)
+        c.setopt(c.COOKIE, 'XZ_LOGGED_IN=1')
+        c.setopt(c.URL, 'https://xtrazone.sso.bluewin.ch/index.php/20,53,ajax,,,283/?route=%2Flogin%2Fuserboxinfo')
+        c.perform()
+        print d.data
+    except pycurl.error as e:
+        print 'Error: Could not retrieve number of remaining SMS'
         return 1
 
 if __name__ == '__main__':
