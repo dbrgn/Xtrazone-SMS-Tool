@@ -3,88 +3,137 @@
 
 import os, sys
 import json
-import pycurl
-import urllib
 import re
+import urllib
+import mechanize, cookielib
+from BeautifulSoup import BeautifulSoup
 
-imageviewer = 'eog'
-username = ''
-password = ''
+# Add your data here
+imageviewer = 'eog' # Preferred image viewer like eog, mirage, feh...
+username = '' # Xtrazone username
+password = '' # Xtrazone password
 
-class Curldata:
-    def __init__(self):
-        self.data = ''
-    
-    def add(self, buf):
-        self.data = self.data + buf
-    
-    def flush(self):
-        self.data = ''
+# Config variables
+_debug = False # Set to True to show debug output
 
 def main():
-    # Initialize pycurl and data class
-    c = pycurl.Curl()
-    d = Curldata()
+    # Check config
+    if username == '' || password == ''
+        print 'Error: Please set your username and password'
+        return 1
+        
+    # Initialize mechanize instance
+    b = mechanize.Browser()
+    
+    # Cookie jar
+    c = cookielib.LWPCookieJar()
+    b.set_cookiejar(c)
 
-    # Set some general curl options
-    c.setopt(c.SSL_VERIFYPEER, 0) # Disable SSL cert verification (fix later)
-    c.setopt(c.FOLLOWLOCATION, 1) # Follow redirects
-    c.setopt(c.USERAGENT, 'Mozilla/5.0 (X11; U; Linux i686; de; rv:1.9.2.13) Gecko/20101206 Ubuntu/10.10 (maverick) Firefox/3.6.13')
-    c.setopt(c.COOKIEJAR, '/tmp/xtrazone.cookie') # Place to store cookies
-    c.setopt(c.WRITEFUNCTION, d.add) # Define function to process data
+    # Browser options
+    b.set_handle_equiv(True)
+    b.set_handle_redirect(True)
+    b.set_handle_referer(True)
+    b.set_handle_robots(False)
+
+    # Follow refresh 0 but don't hang on refresh > 0
+    b.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
+
+    # User agent
+    b.addheaders = [
+            ('User-agent', 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0)'),
+            ]
+
+    # Debugging stuff
+    if _debug:
+        b.set_debug_http(True)
+        b.set_debug_redirects(True)
+        b.set_debug_responses(True)
+
 
     # Get CAPTCHA URL
     try:
-        c.setopt(c.URL, 'https://xtrazone.sso.bluewin.ch/index.php/20,53,ajax,,,283/?route=%2Flogin%2Fgetcaptcha')
-        c.setopt(c.POST, 1) # Enable POST data
-        c.setopt(c.POSTFIELDS, 'action=getCaptcha') # POST data
-        c.perform() # Perform POST request
+        # This will start the session etc
+        b.open('https://xtrazone.sso.bluewin.ch/index.html.de')
 
-        resp = json.loads(d.data) # Convert response to dictionary
+        b.addheaders = [
+                ('X-Requested-With', 'XMLHttpRequest'),
+                ('X-Header-XtraZone', 'XtraZone'),
+                ('Referer', 'https://xtrazone.sso.bluewin.ch/index.html.de'),
+                ]
+        url = 'https://xtrazone.sso.bluewin.ch/index.php/20,53,ajax,,,283/?route=%2Flogin%2Fgetcaptcha'
+        data = {'action': 'getCaptcha',
+                'do_sso_login': 0,
+                'passphrase': '',
+                'sso_password': password,
+                'sso_user': username,
+                'token': '',
+                }
+        b.open(url, urllib.urlencode(data))
+
+        resp = json.loads(b.response().read()) # Convert response to dictionary
         captcha_url = 'http:' + resp['content']['messages']['operation']['imgUrl']
         captcha_token = resp['content']['messages']['operation']['token']
-    except pycurl.error as e:
-        print 'Error: Could not retrieve CAPTCHA'
+    except Exception as e:
+        print 'Error: Could not retrieve CAPTCHA: %s' % e
         return 1
+
 
     # Display CAPTCHA using image viewer of choice
     print 'Image viewer has been launched to display CAPTCHA.'
-    os.system('%s %s > /dev/null 2>&1 &' % (imageviewer, captcha_url))
+    os.system('%s %s > /dev/null 2>&1 &' % (imageviewer, captcha_url)) # TODO: very unsafe, fix
     captcha = raw_input('Please enter CAPTCHA: ')
     if captcha == '':
         print 'Error: CAPTCHA may not be empty.'
         return 1
 
+
     # Log in
     try:
-        d.flush() # Flush previous data
-        c.setopt(c.URL, 'https://xtrazone.sso.bluewin.ch/index.php/22,39,ajax_json,,,157/')
-        postfields = urllib.urlencode([
-                ('action', 'ssoLogin'),
-                ('sso_do_login', 1),
-                ('passphrase', captcha),
-                ('sso_password', password),
-                ('sso_user', username),
-                ('token', captcha_token),
-                ])
-        c.setopt(c.POSTFIELDS, postfields)
-        c.perform()
-        print d.data
-    except pycurl.error as e:
-        print 'Error: Could not log in'
+        b.addheaders = [
+                ('X-Requested-With', 'XMLHttpRequest'),
+                ('X-Header-XtraZone', 'XtraZone'),
+                ('Referer', 'https://xtrazone.sso.bluewin.ch/index.html.de'),
+                ]
+        url = 'https://xtrazone.sso.bluewin.ch/index.php/22,39,ajax_json,,,157/'
+        data = {'action': 'ssoLogin',
+                'do_sso_login': 1,
+                'passphrase': captcha,
+                'sso_password': password,
+                'sso_user': username,
+                'token': captcha_token,
+                }
+        b.open(url, urllib.urlencode(data))
+
+        resp = json.loads(b.response().read()) # Convert response to dictionary
+        if resp['status'] == 'login_failed':
+            print 'Error: %s' % resp['message']
+            return 1
+    except Exception as e:
+        print 'Error: Could not log in: %s' % e
         return 1
 
-    # Retrieve number of remaining SMS
+
+    # Retrieve user info
     try:
-        d.flush()
-        c.setopt(c.POST, 0)
-        c.setopt(c.COOKIE, 'XZ_LOGGED_IN=1')
-        c.setopt(c.URL, 'https://xtrazone.sso.bluewin.ch/index.php/20,53,ajax,,,283/?route=%2Flogin%2Fuserboxinfo')
-        c.perform()
-        print d.data
-    except pycurl.error as e:
-        print 'Error: Could not retrieve number of remaining SMS'
+        b.open('https://xtrazone.sso.bluewin.ch/index.php/20,53,ajax,,,283/?route=%2Flogin%2Fuserboxinfo')
+        resp = json.loads(b.response().read()) # Convert response to dictionary
+
+        # Parse HTML
+        html = resp['content']
+        soup = BeautifulSoup(html)
+        nickname = soup.find('div', {'class': 'userinfo'}) \
+                .find('h5').contents[0].strip()
+        fullname = soup.find('div', {'class': 'userinfo'}) \
+                .find('a', {'href': '/index.php/20?route=%2Fprofile'}).contents[0].strip()
+        remaining = int(re.search('&nbsp;([0-9]{1,3})&nbsp;',
+                soup.find('div', {'class': 'userinfo'}).find('span').contents[0]).group(1))
+
+        print 'Hi %s (%s), you have %u SMS/MMS left' % (fullname, nickname, remaining)
+
+    except Exception as e:
+        print 'Error: Could not retrieve number of remaining SMS: %s' % e
         return 1
+
 
 if __name__ == '__main__':
     sys.exit(main())
