@@ -18,7 +18,7 @@ _debug = False # Set to True to show debug output
 
 def main():
     # Check config
-    if username == '' || password == ''
+    if (username == '' or password == ''):
         print 'Error: Please set your username and password'
         return 1
         
