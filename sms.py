@@ -5,7 +5,7 @@ import os, sys
 import json
 import re
 import urllib
-import mechanize, cookielib
+import mechanize
 from BeautifulSoup import BeautifulSoup
 
 # Add your data here
@@ -25,10 +25,6 @@ def main():
     # Initialize mechanize instance
     b = mechanize.Browser()
     
-    # Cookie jar
-    c = cookielib.LWPCookieJar()
-    b.set_cookiejar(c)
-
     # Browser options
     b.set_handle_equiv(True)
     b.set_handle_redirect(True)
